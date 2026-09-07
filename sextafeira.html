@@ -1,0 +1,1411 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SextaFeira</title>
+<style>
+  :root{
+    --bg: #050a10;
+    --bg-panel: rgba(9, 24, 32, 0.55);
+    --cyan: #4df3ff;
+    --cyan-dim: #1c6b78;
+    --cyan-glow: rgba(77, 243, 255, 0.35);
+    --magenta: #ff5ee8;
+    --text: #dffbff;
+    --text-dim: #6fa8b3;
+  }
+  *{ box-sizing: border-box; }
+  html, body{
+    margin:0; padding:0; height:100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Consolas", "SF Mono", "Courier New", monospace;
+    overflow: hidden;
+  }
+
+  /* Fundo com grade holográfica e scanlines */
+  body::before{
+    content:"";
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(77,243,255,0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(77,243,255,0.06) 1px, transparent 1px);
+    background-size: 34px 34px;
+    -webkit-mask-image: radial-gradient(ellipse at 50% 30%, black 0%, transparent 75%);
+            mask-image: radial-gradient(ellipse at 50% 30%, black 0%, transparent 75%);
+    pointer-events: none;
+    z-index: 0;
+  }
+  body::after{
+    content:"";
+    position: fixed; inset: 0;
+    background: repeating-linear-gradient(
+      to bottom,
+      rgba(0,0,0,0) 0px,
+      rgba(0,0,0,0) 2px,
+      rgba(77,243,255,0.025) 3px,
+      rgba(0,0,0,0) 4px
+    );
+    pointer-events: none;
+    z-index: 999;
+  }
+
+  .app{
+    position: relative; z-index: 1;
+    display:flex; flex-direction:column;
+    height:100vh; max-width: 580px; margin: 0 auto;
+  }
+
+  /* Cabeçalho */
+  .header{
+    display:flex; align-items:center; gap:16px;
+    padding: 22px 22px 16px;
+    flex-shrink:0;
+  }
+  .core{
+    width: 54px; height: 54px;
+    flex-shrink:0;
+    position: relative;
+  }
+  .core-ring{
+    position:absolute; inset:0;
+    border-radius:50%;
+    border: 1.5px solid var(--cyan);
+    box-shadow: 0 0 12px var(--cyan-glow), inset 0 0 12px var(--cyan-glow);
+    animation: spin 6s linear infinite;
+  }
+  .core-ring.r2{
+    inset: 8px;
+    border-color: var(--magenta);
+    border-style: dashed;
+    animation: spin 4s linear infinite reverse;
+    opacity: 0.7;
+  }
+  .core-dot{
+    position:absolute; inset: 20px;
+    border-radius:50%;
+    background: radial-gradient(circle at 35% 35%, #fff, var(--cyan) 40%, var(--cyan-dim) 100%);
+    box-shadow: 0 0 18px var(--cyan-glow);
+    animation: pulseCore 2.2s ease-in-out infinite;
+  }
+  @keyframes spin{ from{ transform: rotate(0deg); } to{ transform: rotate(360deg); } }
+  @keyframes pulseCore{
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+  }
+  .header-text h1{
+    font-weight: 600;
+    font-size: 21px;
+    margin:0;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--cyan);
+    text-shadow: 0 0 10px var(--cyan-glow);
+  }
+  .header-text p{
+    margin:3px 0 0; font-size:11.5px; color: var(--text-dim);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .header-text p::before{
+    content: "● ";
+    color: #4dff8c;
+  }
+  #voiceSelect{
+    margin-left: auto;
+    background: var(--bg-panel);
+    color: var(--cyan);
+    border: 1px solid var(--cyan-dim);
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 11px;
+    padding: 6px 8px;
+    max-width: 130px;
+    outline: none;
+  }
+  #voiceSelect option{ background: #0a1620; color: var(--text); }
+  .header{ flex-wrap: wrap; }
+  .voice-sliders{
+    display:flex; gap:10px;
+    width:100%;
+    justify-content:flex-end;
+    margin-top: 4px;
+  }
+  .voice-sliders label{
+    display:flex; align-items:center; gap:5px;
+    font-size: 10px; color: var(--text-dim);
+    text-transform: uppercase; letter-spacing: 1px;
+  }
+  .voice-sliders input[type="range"]{
+    width: 60px; accent-color: var(--cyan);
+  }
+
+  /* Área de mensagens */
+  .messages{
+    flex:1; overflow-y:auto;
+    padding: 10px 22px 20px;
+    display:flex; flex-direction:column; gap:16px;
+  }
+  .msg{
+    max-width: 85%;
+    padding: 13px 16px;
+    line-height: 1.5;
+    font-size: 14px;
+    border-radius: 4px;
+    position: relative;
+    backdrop-filter: blur(6px);
+  }
+  .msg .tag{
+    display:block;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 5px;
+    opacity: 0.65;
+  }
+  .msg.assistant{
+    align-self:flex-start;
+    background: var(--bg-panel);
+    border: 1px solid var(--cyan-dim);
+    box-shadow: 0 0 14px rgba(77,243,255,0.08), inset 0 0 20px rgba(77,243,255,0.04);
+    color: var(--text);
+  }
+  .msg.assistant .tag{ color: var(--cyan); }
+  .msg.user{
+    align-self:flex-end;
+    background: rgba(255, 94, 232, 0.07);
+    border: 1px solid rgba(255,94,232,0.35);
+    box-shadow: 0 0 14px rgba(255,94,232,0.08);
+    color: var(--text);
+  }
+  .msg.user .tag{ color: var(--magenta); }
+  .msg.assistant.thinking{
+    color: var(--text-dim);
+  }
+  .msg.assistant.thinking .tag{ opacity: 0.4; }
+
+  /* Barra inferior */
+  .composer{
+    flex-shrink:0;
+    margin: 0 22px 22px;
+    display:flex; align-items:flex-end; gap:10px;
+    background: var(--bg-panel);
+    border: 1px solid var(--cyan-dim);
+    border-radius: 6px;
+    padding: 10px 10px 10px 16px;
+    box-shadow: 0 0 18px rgba(77,243,255,0.07);
+  }
+  .composer textarea{
+    flex:1;
+    resize:none;
+    background: transparent;
+    border: none;
+    color: var(--text);
+    padding: 6px 0;
+    font-size: 14px;
+    font-family: inherit;
+    max-height: 120px;
+    outline: none;
+  }
+  .composer textarea::placeholder{ color: var(--text-dim); }
+  .icon-btn{
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    border: 1px solid var(--cyan-dim);
+    background: rgba(77,243,255,0.05);
+    color: var(--cyan);
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    flex-shrink:0;
+    font-size: 16px;
+    transition: all 0.15s;
+  }
+  .icon-btn:active{ transform: scale(0.92); }
+  .icon-btn.send{
+    background: var(--cyan);
+    border-color: var(--cyan);
+    color: #04141a;
+    box-shadow: 0 0 12px var(--cyan-glow);
+  }
+  .icon-btn.mic.listening{
+    background: var(--magenta);
+    border-color: var(--magenta);
+    color: #1a0414;
+    box-shadow: 0 0 12px rgba(255,94,232,0.5);
+    animation: pulseBtn 1.2s infinite;
+  }
+  @keyframes pulseBtn{
+    0%   { box-shadow: 0 0 0 0 rgba(255,94,232,0.45); }
+    70%  { box-shadow: 0 0 0 14px rgba(255,94,232,0); }
+    100% { box-shadow: 0 0 0 0 rgba(255,94,232,0); }
+  }
+
+  /* Painel de mapa */
+  .map-panel{
+    position: fixed; inset: 0;
+    z-index: 500;
+    background: var(--bg);
+    display: none;
+    flex-direction: column;
+  }
+  .map-panel.open{ display: flex; }
+  .map-search{
+    display:flex; gap:8px; flex-wrap: wrap;
+    padding: 16px 16px 10px;
+    flex-shrink:0;
+  }
+  .map-search input{ min-width: 140px; }
+  .map-search input{
+    flex:1;
+    background: var(--bg-panel);
+    border: 1px solid var(--cyan-dim);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-family: inherit;
+    font-size: 14px;
+    outline: none;
+  }
+  .map-search button{
+    background: var(--cyan);
+    border: none;
+    color: #04141a;
+    border-radius: 6px;
+    padding: 0 16px;
+    font-family: inherit;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  #mapDiv{ flex:1; filter: hue-rotate(150deg) invert(0.92) contrast(0.9); }
+  .map-info{
+    padding: 10px 16px;
+    font-size: 12.5px;
+    color: var(--cyan);
+    text-align: center;
+    flex-shrink:0;
+  }
+  .map-close{
+    position:absolute; top:16px; right:16px; z-index: 600;
+  }
+  .nav-banner{
+    display: none;
+    background: linear-gradient(180deg, rgba(77,243,255,0.16), rgba(77,243,255,0.04));
+    border-bottom: 1px solid var(--cyan-dim);
+    padding: 14px 20px;
+    flex-shrink: 0;
+  }
+  .nav-banner.active{ display: block; }
+  .nav-instrucao{
+    font-size: 17px; font-weight: 600; color: var(--cyan);
+    text-shadow: 0 0 8px var(--cyan-glow);
+  }
+  .nav-distancia{
+    font-size: 12px; color: var(--text-dim); margin-top: 4px;
+    letter-spacing: 1px; text-transform: uppercase;
+  }
+  .nav-start{
+    position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: var(--cyan); color: #04141a; border: none;
+    padding: 12px 22px; border-radius: 24px;
+    font-family: inherit; font-weight: 700; font-size: 14px;
+    cursor: pointer;
+    box-shadow: 0 0 16px var(--cyan-glow);
+    z-index: 550;
+  }
+  #modoTransporte{
+    background: var(--bg-panel);
+    color: var(--cyan);
+    border: 1px solid var(--cyan-dim);
+    border-radius: 6px;
+    font-size: 16px;
+    padding: 0 6px;
+    outline: none;
+  }
+  .map-controls{
+    position: absolute;
+    right: 16px;
+    bottom: 90px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 540;
+  }
+  .map-controls .icon-btn{
+    background: var(--bg-panel);
+    box-shadow: 0 0 10px rgba(0,0,0,0.4);
+  }
+  .accuracy-warning{
+    display: none;
+    background: rgba(255, 94, 232, 0.12);
+    border-bottom: 1px solid var(--magenta);
+    color: var(--magenta);
+    font-size: 11.5px;
+    text-align: center;
+    padding: 6px;
+  }
+  .accuracy-warning.show{ display: block; }
+  #manualBtn.ativo{
+    background: var(--magenta);
+    color: #1a0414;
+    border-color: var(--magenta);
+  }
+
+  /* ---------------- Tela de voz / rosto holográfico ---------------- */
+  .screen{ display:none; flex:1; min-height:0; flex-direction:column; }
+  .screen.active{ display:flex; }
+
+  .voice-screen{
+    align-items:center; justify-content:center;
+    position: relative;
+    gap: 26px;
+    padding-bottom: 10px;
+  }
+
+  .face-wrap{
+    position: relative;
+    width: 240px; height: 240px;
+  }
+  .avatar-ring{
+    position:absolute; inset: -14px;
+    border-radius: 50%;
+    border: 1px solid var(--cyan-dim);
+    opacity: 0.55;
+  }
+  .avatar-ring.outer{ animation: spin 14s linear infinite; }
+  .avatar-ring.inner{ inset: 4px; animation: spin 9s linear infinite reverse; border-color: var(--magenta); border-style: dashed; opacity: 0.35; }
+
+  .esfera-canvas-wrap{
+    position:absolute; inset: 26px;
+  }
+  #esferaCanvas{
+    width:100%; height:100%; display:block;
+  }
+
+  .mic-bars{
+    position:absolute;
+    bottom: -30px; left: 50%;
+    transform: translateX(-50%);
+    display:flex; align-items:flex-end; gap:3px;
+    height: 20px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  .mic-bars.show{ opacity: 1; }
+  .mic-bars span{
+    width: 3px;
+    background: var(--magenta);
+    border-radius: 2px;
+    height: 3px;
+    box-shadow: 0 0 5px rgba(255,94,232,0.6);
+    transition: height 0.08s ease;
+  }
+
+  .voice-status{
+    font-size: 12.5px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    min-height: 18px;
+  }
+  .voice-status.listening{ color: var(--magenta); }
+  .voice-status.speaking, .voice-status.thinking{ color: var(--cyan); }
+
+  .voice-last-heard{
+    max-width: 80%;
+    text-align:center;
+    font-size: 13px;
+    color: var(--text-dim);
+    min-height: 20px;
+    font-style: italic;
+  }
+
+  .voice-mic-big{
+    width: 78px; height: 78px;
+    border-radius: 50%;
+    border: 1.5px solid var(--cyan);
+    background: rgba(77,243,255,0.08);
+    color: var(--cyan);
+    font-size: 28px;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    box-shadow: 0 0 22px var(--cyan-glow);
+    transition: all .15s;
+  }
+  .voice-mic-big:active{ transform: scale(0.94); }
+  .voice-mic-big.listening{
+    background: var(--magenta);
+    border-color: var(--magenta);
+    color: #1a0414;
+    box-shadow: 0 0 22px rgba(255,94,232,0.5);
+    animation: pulseBtn 1.2s infinite;
+  }
+
+  .top-mini-actions{
+    position:absolute; top: 18px; right: 18px;
+    display:flex; gap:10px;
+    z-index: 5;
+  }
+  .top-mini-actions .icon-btn{ width:36px; height:36px; font-size:15px; }
+
+  /* ---------------- Barra de abas ---------------- */
+  .tabbar{
+    flex-shrink:0;
+    display:flex;
+    border-top: 1px solid var(--cyan-dim);
+    background: var(--bg-panel);
+  }
+  .tabbar button{
+    flex:1;
+    background:none; border:none;
+    color: var(--text-dim);
+    font-family: inherit;
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    padding: 13px 0 11px;
+    cursor:pointer;
+    display:flex; flex-direction:column; align-items:center; gap:4px;
+  }
+  .tabbar button .icon{ font-size:17px; }
+  .tabbar button.active{ color: var(--cyan); }
+  .tabbar button.active .icon{ filter: drop-shadow(0 0 6px var(--cyan-glow)); }
+
+  /* aba de conversa (texto) reaproveita .messages e .composer já existentes */
+  .chat-screen{ min-height:0; }
+</style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ===================== TELA DE VOZ (principal) ===================== -->
+  <div class="screen voice-screen active" id="screenVoice">
+    <div class="top-mini-actions">
+      <button class="icon-btn" id="mapBtn" title="Abrir mapa">🗺</button>
+      <button class="icon-btn" id="settingsBtn" title="Configurações de voz">⚙</button>
+    </div>
+
+    <div class="face-wrap idle" id="faceWrap">
+      <div class="avatar-ring outer"></div>
+      <div class="avatar-ring inner"></div>
+      <div class="esfera-canvas-wrap">
+        <canvas id="esferaCanvas"></canvas>
+      </div>
+      <div class="mic-bars" id="micBars">
+        <span></span><span></span><span></span><span></span><span></span>
+      </div>
+    </div>
+
+    <div class="voice-status" id="voiceStatus">sistema online</div>
+    <div class="voice-last-heard" id="voiceLastHeard"></div>
+
+    <button class="voice-mic-big" id="micBtnMain" title="Falar">🎤</button>
+  </div>
+
+  <!-- ===================== TELA DE CONVERSA (texto) ===================== -->
+  <div class="screen chat-screen" id="screenChat">
+    <div class="header">
+      <div class="core">
+        <div class="core-ring"></div>
+        <div class="core-ring r2"></div>
+        <div class="core-dot"></div>
+      </div>
+      <div class="header-text">
+        <h1>SextaFeira</h1>
+        <p id="status-line">sistema online</p>
+      </div>
+      <select id="voiceSelect" title="Escolher voz"></select>
+      <div class="voice-sliders">
+        <label>Tom<input type="range" id="pitchRange" min="0.5" max="1.5" step="0.05" value="0.85"></label>
+        <label>Vel.<input type="range" id="rateRange" min="0.7" max="1.3" step="0.05" value="0.95"></label>
+      </div>
+    </div>
+
+    <div class="messages" id="messages">
+      <div class="msg assistant">
+        <span class="tag">SextaFeira</span>
+        Olá. Sistemas ativos — agenda, e-mail e clima conectados. Pode digitar ou tocar no microfone para falar comigo.
+      </div>
+    </div>
+
+    <div class="composer">
+      <button class="icon-btn mic" id="micBtn" title="Falar">🎤</button>
+      <textarea id="input" rows="1" placeholder="transmitir mensagem..."></textarea>
+      <button class="icon-btn send" id="sendBtn" title="Enviar">➤</button>
+    </div>
+  </div>
+
+  <!-- ===================== Barra de abas ===================== -->
+  <div class="tabbar">
+    <button class="tab-btn active" data-screen="screenVoice">
+      <span class="icon">◎</span>Falar
+    </button>
+    <button class="tab-btn" data-screen="screenChat">
+      <span class="icon">☰</span>Conversa
+    </button>
+  </div>
+
+  <div class="map-panel" id="mapPanel">
+    <button class="icon-btn map-close" id="mapCloseBtn">✕</button>
+    <div class="accuracy-warning" id="accuracyWarning"></div>
+    <div class="nav-banner" id="navBanner">
+      <div class="nav-instrucao" id="navInstrucao"></div>
+      <div class="nav-distancia" id="navDistancia"></div>
+    </div>
+    <div class="map-search">
+      <input type="text" id="destinoInput" placeholder="Para onde vamos?">
+      <select id="modoTransporte">
+        <option value="driving">🚗</option>
+        <option value="foot">🚶</option>
+        <option value="bike">🚲</option>
+      </select>
+      <button id="rotaBtn">Traçar rota</button>
+    </div>
+    <div id="mapDiv"></div>
+    <div class="map-controls">
+      <button class="icon-btn" id="centralizarBtn" title="Centralizar em mim">🎯</button>
+      <button class="icon-btn" id="manualBtn" title="Definir localização manual">📍</button>
+    </div>
+    <div class="map-info" id="mapInfo">Localizando você...</div>
+    <button class="nav-start" id="navStartBtn" style="display:none;">▶ Iniciar navegação</button>
+  </div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const messagesEl = document.getElementById('messages');
+const inputEl = document.getElementById('input');
+const sendBtn = document.getElementById('sendBtn');
+const micBtn = document.getElementById('micBtn');
+const micBtnMain = document.getElementById('micBtnMain');
+const statusLine = document.getElementById('status-line');
+const faceWrap = document.getElementById('faceWrap');
+const voiceStatus = document.getElementById('voiceStatus');
+const voiceLastHeard = document.getElementById('voiceLastHeard');
+
+// Estados possíveis: 'idle' | 'listening' | 'thinking' | 'speaking'
+const TEXTO_ESTADO = {
+  idle: 'sistema online',
+  listening: 'ouvindo...',
+  thinking: 'processando...',
+  speaking: 'falando...'
+};
+function setVoiceState(estado){
+  faceWrap.classList.remove('idle', 'listening', 'thinking', 'speaking');
+  faceWrap.classList.add(estado);
+  voiceStatus.className = 'voice-status ' + estado;
+  voiceStatus.textContent = TEXTO_ESTADO[estado] || estado;
+  statusLine.textContent = TEXTO_ESTADO[estado] || estado;
+  micBtnMain.classList.toggle('listening', estado === 'listening');
+  micBtn.classList.toggle('listening', estado === 'listening');
+  if (window.esfera3D) window.esfera3D.setState(estado);
+}
+
+// ---------------------------------------------------------------
+// Barrinhas de volume real do microfone (Web Audio API), só durante 'listening'
+// ---------------------------------------------------------------
+const micBars = document.getElementById('micBars');
+const micBarEls = micBars ? Array.from(micBars.querySelectorAll('span')) : [];
+let audioCtx = null;
+let analyser = null;
+let micStream = null;
+let volumeRAF = null;
+
+async function iniciarAnaliseDeVolume(){
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const source = audioCtx.createMediaStreamSource(micStream);
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 256;
+    source.connect(analyser);
+    const data = new Uint8Array(analyser.frequencyBinCount);
+    micBars.classList.add('show');
+
+    function tick(){
+      analyser.getByteFrequencyData(data);
+      const media = data.reduce((a, b) => a + b, 0) / data.length;
+      const nivel = Math.min(1, media / 60);
+      micBarEls.forEach((bar, i) => {
+        const variação = 0.5 + Math.sin(Date.now() / 120 + i) * 0.5;
+        const altura = 3 + nivel * 17 * (0.4 + variação * 0.6);
+        bar.style.height = altura.toFixed(1) + 'px';
+      });
+      volumeRAF = requestAnimationFrame(tick);
+    }
+    tick();
+  } catch (err) {
+    // Sem permissão de microfone para a análise visual — a escuta em si (reconhecimento de fala) continua funcionando normalmente.
+  }
+}
+
+function pararAnaliseDeVolume(){
+  if (volumeRAF) cancelAnimationFrame(volumeRAF);
+  volumeRAF = null;
+  if (micStream) micStream.getTracks().forEach(t => t.stop());
+  micStream = null;
+  if (audioCtx) audioCtx.close();
+  audioCtx = null;
+  analyser = null;
+  if (micBars) micBars.classList.remove('show');
+  micBarEls.forEach(bar => bar.style.height = '3px');
+}
+
+// ---------------------------------------------------------------
+// Abas (Falar / Conversa)
+// ---------------------------------------------------------------
+const tabButtons = document.querySelectorAll('.tab-btn');
+function irParaTela(id){
+  document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id));
+  tabButtons.forEach(b => b.classList.toggle('active', b.dataset.screen === id));
+}
+tabButtons.forEach(btn => {
+  btn.addEventListener('click', () => irParaTela(btn.dataset.screen));
+});
+document.getElementById('settingsBtn').addEventListener('click', () => irParaTela('screenChat'));
+
+function addMessage(text, who, label){
+  const div = document.createElement('div');
+  div.className = 'msg ' + who;
+  const tag = document.createElement('span');
+  tag.className = 'tag';
+  tag.textContent = label;
+  const body = document.createElement('div');
+  body.textContent = text;
+  div.appendChild(tag);
+  div.appendChild(body);
+  messagesEl.appendChild(div);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+  return div;
+}
+
+const BACKEND_URL = "https://sextafeira-kvyc.onrender.com";
+const APP_KEY = "Asdf0987";
+
+let historicoConversa = [];
+
+async function getAssistantReply(userText){
+  const body = { message: userText, historico: historicoConversa };
+  if (posicaoAtual) {
+    body.lat = posicaoAtual.lat;
+    body.lon = posicaoAtual.lon;
+  }
+  const resp = await fetch(BACKEND_URL + "/api/chat", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-app-key": APP_KEY
+    },
+    body: JSON.stringify(body)
+  });
+  if(!resp.ok){
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.error || ("Erro " + resp.status));
+  }
+  return await resp.json();
+}
+
+async function handleSend(){
+  const text = inputEl.value.trim();
+  if(!text) return;
+  addMessage(text, 'user', 'Você');
+  voiceLastHeard.textContent = '“' + text + '”';
+  inputEl.value = '';
+  inputEl.style.height = 'auto';
+
+  setVoiceState('thinking');
+  const thinkingEl = addMessage('processando...', 'assistant thinking', 'SextaFeira');
+  try {
+    const data = await getAssistantReply(text);
+    thinkingEl.remove();
+    addMessage(data.reply, 'assistant', 'SextaFeira');
+    speak(data.reply);
+
+    historicoConversa.push({ role: 'user', content: text });
+    historicoConversa.push({ role: 'assistant', content: data.reply });
+    if (historicoConversa.length > 12) historicoConversa = historicoConversa.slice(-12);
+
+    if (data.acao && data.acao.tipo === 'navegar' && data.acao.lat && data.acao.lon) {
+      mapPanel.classList.add('open');
+      iniciarMapa();
+      setTimeout(() => {
+        map.invalidateSize();
+        tracarRotaComCoords(data.acao.lat, data.acao.lon, data.acao.nome);
+      }, 150);
+    }
+  } catch (err) {
+    thinkingEl.remove();
+    addMessage('Falha na conexão com o servidor: ' + err.message, 'assistant', 'SextaFeira');
+    setVoiceState('idle');
+  }
+}
+
+sendBtn.addEventListener('click', handleSend);
+inputEl.addEventListener('keydown', (e) => {
+  if(e.key === 'Enter' && !e.shiftKey){
+    e.preventDefault();
+    handleSend();
+  }
+});
+inputEl.addEventListener('input', () => {
+  inputEl.style.height = 'auto';
+  inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + 'px';
+});
+
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognition = null;
+let listening = false;
+
+if(SpeechRecognition){
+  recognition = new SpeechRecognition();
+  recognition.lang = 'pt-BR';
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
+
+  recognition.onstart = () => {
+    listening = true;
+    setVoiceState('listening');
+    iniciarAnaliseDeVolume();
+  };
+  recognition.onend = () => {
+    listening = false;
+    pararAnaliseDeVolume();
+    if (faceWrap.classList.contains('listening')) setVoiceState('idle');
+  };
+  recognition.onerror = () => {
+    listening = false;
+    pararAnaliseDeVolume();
+    setVoiceState('idle');
+    voiceStatus.textContent = 'falha no áudio, tente de novo';
+  };
+  recognition.onresult = (event) => {
+    const said = event.results[0][0].transcript;
+    inputEl.value = said;
+    handleSend();
+  };
+
+  function toggleEscuta(){
+    if(listening){
+      recognition.stop();
+    } else {
+      recognition.start();
+    }
+  }
+  micBtn.addEventListener('click', toggleEscuta);
+  micBtnMain.addEventListener('click', toggleEscuta);
+} else {
+  const semAudio = () => { voiceStatus.textContent = 'áudio indisponível neste navegador'; };
+  micBtn.addEventListener('click', semAudio);
+  micBtnMain.addEventListener('click', semAudio);
+}
+
+function limparParaFala(text){
+  return text
+    .replace(/\*\*(.*?)\*\*/g, '$1')  // **negrito**
+    .replace(/\*(.*?)\*/g, '$1')       // *itálico*
+    .replace(/__(.*?)__/g, '$1')       // __sublinhado__
+    .replace(/_(.*?)_/g, '$1')         // _itálico_
+    .replace(/`(.*?)`/g, '$1')         // `código`
+    .replace(/#{1,6}\s?/g, '')         // # títulos
+    .replace(/^-\s+/gm, '')            // - listas
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+// ---------------------------------------------------------------
+// Seletor de voz
+// ---------------------------------------------------------------
+const voiceSelect = document.getElementById('voiceSelect');
+const pitchRange = document.getElementById('pitchRange');
+const rateRange = document.getElementById('rateRange');
+let vozes = [];
+let vozEscolhida = null;
+
+const NOMES_MASCULINOS = ['daniel', 'felipe', 'ricardo', 'diego', 'antonio', 'male', 'homem', 'thiago'];
+
+function carregarVozes(){
+  vozes = window.speechSynthesis.getVoices().filter(v => v.lang.toLowerCase().startsWith('pt'));
+  if (vozes.length === 0) vozes = window.speechSynthesis.getVoices();
+
+  voiceSelect.innerHTML = '';
+  vozes.forEach((v, i) => {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = v.name.replace('Microsoft ', '').replace('Google ', '');
+    voiceSelect.appendChild(opt);
+  });
+
+  const salva = localStorage.getItem('sextafeira_voz');
+  let indice = 0;
+  if (salva && vozes.some(v => v.name === salva)) {
+    indice = vozes.findIndex(v => v.name === salva);
+  } else {
+    const masc = vozes.findIndex(v => NOMES_MASCULINOS.some(n => v.name.toLowerCase().includes(n)));
+    if (masc >= 0) indice = masc;
+  }
+  if (vozes.length > 0) {
+    vozEscolhida = vozes[indice];
+    voiceSelect.value = indice;
+  }
+}
+
+if ('speechSynthesis' in window) {
+  carregarVozes();
+  window.speechSynthesis.onvoiceschanged = carregarVozes;
+}
+
+const salvoPitch = localStorage.getItem('sextafeira_pitch');
+const salvoRate = localStorage.getItem('sextafeira_rate');
+if (salvoPitch) pitchRange.value = salvoPitch;
+if (salvoRate) rateRange.value = salvoRate;
+
+voiceSelect.addEventListener('change', () => {
+  vozEscolhida = vozes[Number(voiceSelect.value)];
+  if (vozEscolhida) localStorage.setItem('sextafeira_voz', vozEscolhida.name);
+  testarVoz();
+});
+pitchRange.addEventListener('change', () => {
+  localStorage.setItem('sextafeira_pitch', pitchRange.value);
+  testarVoz();
+});
+rateRange.addEventListener('change', () => {
+  localStorage.setItem('sextafeira_rate', rateRange.value);
+  testarVoz();
+});
+
+function testarVoz(){
+  const teste = new SpeechSynthesisUtterance('Boa noite. Sistemas operando normalmente.');
+  if (vozEscolhida) teste.voice = vozEscolhida;
+  teste.lang = vozEscolhida ? vozEscolhida.lang : 'pt-BR';
+  teste.pitch = Number(pitchRange.value);
+  teste.rate = Number(rateRange.value);
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.speak(teste);
+}
+
+function speak(text){
+  if(!('speechSynthesis' in window)) { setVoiceState('idle'); return; }
+  const utter = new SpeechSynthesisUtterance(limparParaFala(text));
+  if (vozEscolhida) utter.voice = vozEscolhida;
+  utter.lang = vozEscolhida ? vozEscolhida.lang : 'pt-BR';
+  utter.pitch = Number(pitchRange.value);
+  utter.rate = Number(rateRange.value);
+  utter.onstart = () => setVoiceState('speaking');
+  utter.onend = () => setVoiceState('idle');
+  utter.onerror = () => setVoiceState('idle');
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.speak(utter);
+}
+
+// ---------------------------------------------------------------
+// MAPA: localização em tempo real, busca de destino e rota
+// ---------------------------------------------------------------
+const mapPanel = document.getElementById('mapPanel');
+const mapBtn = document.getElementById('mapBtn');
+const mapCloseBtn = document.getElementById('mapCloseBtn');
+const mapInfo = document.getElementById('mapInfo');
+const destinoInput = document.getElementById('destinoInput');
+const rotaBtn = document.getElementById('rotaBtn');
+const modoTransporte = document.getElementById('modoTransporte');
+const centralizarBtn = document.getElementById('centralizarBtn');
+const manualBtn = document.getElementById('manualBtn');
+const accuracyWarning = document.getElementById('accuracyWarning');
+
+let map = null;
+let marcadorUsuario = null;
+let marcadorDestino = null;
+let linhaRota = null;
+let pontosRota = []; // pontos [lat,lon] da linha da rota, para detectar quando sai do caminho
+let posicaoAtual = null; // {lat, lon}
+let watchId = null;
+let modoManual = false;
+let ultimoDestino = null; // {lat, lon, nome} — para recalcular rota se necessário
+let ultimaRecalculo = 0;
+
+const navBanner = document.getElementById('navBanner');
+const navInstrucao = document.getElementById('navInstrucao');
+const navDistancia = document.getElementById('navDistancia');
+const navStartBtn = document.getElementById('navStartBtn');
+
+let passosRota = [];
+let indiceAtual = 0;
+let anunciosFeitos = new Set(); // ex: "2-400" (passo 2, aviso de 400m) já anunciado
+let navegando = false;
+
+function distanciaMetros(lat1, lon1, lat2, lon2){
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) ** 2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLon/2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function distanciaMinimaAteRota(lat, lon){
+  if (!pontosRota.length) return 0;
+  let menor = Infinity;
+  for (const [plat, plon] of pontosRota) {
+    const d = distanciaMetros(lat, lon, plat, plon);
+    if (d < menor) menor = d;
+  }
+  return menor;
+}
+
+const TEXTO_MODIFICADOR = {
+  'uturn': 'faça o retorno',
+  'sharp right': 'vire fortemente à direita',
+  'right': 'vire à direita',
+  'slight right': 'mantenha-se à direita',
+  'straight': 'siga em frente',
+  'slight left': 'mantenha-se à esquerda',
+  'left': 'vire à esquerda',
+  'sharp left': 'vire fortemente à esquerda'
+};
+
+function capitalizar(s){ return s.charAt(0).toUpperCase() + s.slice(1); }
+
+function instrucaoTexto(step){
+  const nomeRua = step.name ? ` na ${step.name}` : '';
+  const mod = step.maneuver.modifier;
+  switch (step.maneuver.type) {
+    case 'depart': return `Siga${nomeRua}`;
+    case 'arrive': return 'Você chegou ao seu destino';
+    case 'roundabout':
+    case 'rotary': return `Entre na rotatória e saia${nomeRua}`;
+    case 'turn': return `${capitalizar(TEXTO_MODIFICADOR[mod] || 'continue')}${nomeRua}`;
+    case 'fork': return `${capitalizar(TEXTO_MODIFICADOR[mod] || 'continue')} na bifurcação${nomeRua}`;
+    case 'end of road': return `${capitalizar(TEXTO_MODIFICADOR[mod] || 'continue')} no final da via${nomeRua}`;
+    case 'merge': return `Mantenha-se na via${nomeRua}`;
+    case 'new name':
+    case 'continue': return `Continue${nomeRua}`;
+    default: return `Continue${nomeRua}`;
+  }
+}
+
+function iniciarMapa(){
+  if (map) return;
+  map = L.map('mapDiv').setView([-16.6869, -49.2648], 13); // Goiânia como padrão até localizar
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap'
+  }).addTo(map);
+
+  map.on('click', (e) => {
+    if (!modoManual) return;
+    definirPosicaoManual(e.latlng.lat, e.latlng.lng);
+  });
+}
+
+function definirPosicaoManual(lat, lon){
+  posicaoAtual = { lat, lon };
+  if (!marcadorUsuario) {
+    marcadorUsuario = L.circleMarker([lat, lon], {
+      radius: 8, color: '#ff5ee8', fillColor: '#ff5ee8', fillOpacity: 0.9
+    }).addTo(map);
+  } else {
+    marcadorUsuario.setLatLng([lat, lon]);
+    marcadorUsuario.setStyle({ color: '#ff5ee8', fillColor: '#ff5ee8' });
+  }
+  map.setView([lat, lon], 15);
+  mapInfo.textContent = 'Localização manual definida. Clique de novo no mapa para ajustar.';
+}
+
+function atualizarPosicaoNoMapa(lat, lon, precisao){
+  if (modoManual) return; // ignora GPS enquanto o usuário estiver ajustando manualmente
+  posicaoAtual = { lat, lon };
+  if (!map) return;
+  if (!marcadorUsuario) {
+    marcadorUsuario = L.circleMarker([lat, lon], {
+      radius: 8, color: '#4df3ff', fillColor: '#4df3ff', fillOpacity: 0.8
+    }).addTo(map);
+    map.setView([lat, lon], 15);
+  } else {
+    marcadorUsuario.setLatLng([lat, lon]);
+    marcadorUsuario.setStyle({ color: '#4df3ff', fillColor: '#4df3ff' });
+  }
+  if (navegando) map.setView([lat, lon], 17);
+
+  if (precisao && precisao > 100) {
+    accuracyWarning.textContent = `Precisão baixa (~${Math.round(precisao)} m) — comum em computadores sem GPS. Use 📍 para ajustar manualmente se necessário.`;
+    accuracyWarning.classList.add('show');
+  } else {
+    accuracyWarning.classList.remove('show');
+  }
+}
+
+function comecarLocalizacao(){
+  if (!navigator.geolocation) {
+    mapInfo.textContent = 'Geolocalização não disponível neste navegador.';
+    return;
+  }
+  watchId = navigator.geolocation.watchPosition(
+    (pos) => {
+      atualizarPosicaoNoMapa(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
+      verificarProgressoNavegacao(pos.coords.latitude, pos.coords.longitude);
+      if (!navegando) mapInfo.textContent = 'Localização atualizada em tempo real.';
+    },
+    (err) => {
+      mapInfo.textContent = 'Não consegui acessar sua localização: ' + err.message + ' — use 📍 para definir manualmente.';
+    },
+    { enableHighAccuracy: true, maximumAge: 5000 }
+  );
+}
+
+async function calcularRotaEntre(origem, destino){
+  const perfil = modoTransporte.value; // driving | foot | bike
+  const url = `https://router.project-osrm.org/route/v1/${perfil}/${origem.lon},${origem.lat};${destino.lon},${destino.lat}?overview=full&geometries=geojson&steps=true`;
+  const resp = await fetch(url);
+  const data = await resp.json();
+  if (!data.routes || !data.routes.length) return null;
+  return data.routes[0];
+}
+
+function desenharRota(rota){
+  const coords = rota.geometry.coordinates.map(c => [c[1], c[0]]);
+  if (linhaRota) map.removeLayer(linhaRota);
+  linhaRota = L.polyline(coords, { color: '#4df3ff', weight: 4 }).addTo(map);
+  pontosRota = coords;
+  map.fitBounds(linhaRota.getBounds(), { padding: [30, 30] });
+
+  passosRota = rota.legs[0].steps.map(step => ({
+    lat: step.maneuver.location[1],
+    lon: step.maneuver.location[0],
+    texto: instrucaoTexto(step)
+  }));
+}
+
+async function tracarRotaComCoords(destLat, destLon, nomeDestino){
+  if (!posicaoAtual) {
+    mapInfo.textContent = 'Ainda estou localizando você, aguarde um instante.';
+    return;
+  }
+  mapInfo.textContent = 'Calculando rota até ' + (nomeDestino || 'destino') + '...';
+  try {
+    if (marcadorDestino) map.removeLayer(marcadorDestino);
+    marcadorDestino = L.marker([destLat, destLon]).addTo(map);
+    ultimoDestino = { lat: destLat, lon: destLon, nome: nomeDestino };
+
+    const rota = await calcularRotaEntre(posicaoAtual, { lat: destLat, lon: destLon });
+    if (!rota) {
+      mapInfo.textContent = 'Não consegui calcular uma rota até lá.';
+      return;
+    }
+    desenharRota(rota);
+
+    const km = (rota.distance / 1000).toFixed(1);
+    const min = Math.round(rota.duration / 60);
+    mapInfo.textContent = `${km} km · aproximadamente ${min} min até ${(nomeDestino || '').split(',')[0]}`;
+
+    iniciarNavegacao();
+  } catch (err) {
+    mapInfo.textContent = 'Erro ao traçar rota: ' + err.message;
+  }
+}
+
+async function tracarRota(){
+  const destino = destinoInput.value.trim();
+  if (!destino) return;
+  if (!posicaoAtual) {
+    mapInfo.textContent = 'Ainda estou localizando você, aguarde um instante e tente de novo.';
+    return;
+  }
+  mapInfo.textContent = 'Buscando "' + destino + '"...';
+  try {
+    const geoResp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(destino)}`);
+    const geoData = await geoResp.json();
+    if (!geoData.length) {
+      mapInfo.textContent = 'Não encontrei esse endereço.';
+      return;
+    }
+    const destLat = parseFloat(geoData[0].lat);
+    const destLon = parseFloat(geoData[0].lon);
+    const nome = geoData[0].display_name;
+
+    if (marcadorDestino) map.removeLayer(marcadorDestino);
+    marcadorDestino = L.marker([destLat, destLon]).addTo(map);
+    ultimoDestino = { lat: destLat, lon: destLon, nome };
+
+    const rota = await calcularRotaEntre(posicaoAtual, { lat: destLat, lon: destLon });
+    if (!rota) {
+      mapInfo.textContent = 'Não consegui calcular uma rota até lá.';
+      return;
+    }
+    desenharRota(rota);
+    indiceAtual = 0;
+    anunciosFeitos.clear();
+    navegando = false;
+    navBanner.classList.remove('active');
+    navStartBtn.style.display = 'block';
+
+    const km = (rota.distance / 1000).toFixed(1);
+    const min = Math.round(rota.duration / 60);
+    mapInfo.textContent = `${km} km · aproximadamente ${min} min até ${nome.split(',')[0]}`;
+  } catch (err) {
+    mapInfo.textContent = 'Erro ao traçar rota: ' + err.message;
+  }
+}
+
+function iniciarNavegacao(){
+  if (!passosRota.length) return;
+  navegando = true;
+  indiceAtual = 0;
+  anunciosFeitos.clear();
+  navBanner.classList.add('active');
+  navStartBtn.style.display = 'none';
+  speak('Navegação iniciada. ' + passosRota[0].texto);
+}
+
+function pararNavegacao(){
+  navegando = false;
+  navBanner.classList.remove('active');
+  navStartBtn.style.display = passosRota.length ? 'block' : 'none';
+}
+
+async function recalcularSeNecessario(lat, lon){
+  if (!navegando || !ultimoDestino) return;
+  const foraDaRota = distanciaMinimaAteRota(lat, lon) > 70;
+  const passouTempo = (Date.now() - ultimaRecalculo) > 15000;
+  if (foraDaRota && passouTempo) {
+    ultimaRecalculo = Date.now();
+    mapInfo.textContent = 'Você saiu do trajeto, recalculando rota...';
+    speak('Recalculando rota.');
+    const rota = await calcularRotaEntre({ lat, lon }, ultimoDestino);
+    if (rota) {
+      desenharRota(rota);
+      indiceAtual = 0;
+      anunciosFeitos.clear();
+    }
+  }
+}
+
+function verificarProgressoNavegacao(lat, lon){
+  if (!navegando || indiceAtual >= passosRota.length) return;
+  const passo = passosRota[indiceAtual];
+  const dist = distanciaMetros(lat, lon, passo.lat, passo.lon);
+
+  navInstrucao.textContent = passo.texto;
+  navDistancia.textContent = dist < 1000 ? `em ${Math.round(dist)} m` : `em ${(dist/1000).toFixed(1)} km`;
+
+  // Avisos em múltiplas distâncias, cada um falado só uma vez por passo
+  const marcos = [400, 100, 30];
+  for (const marco of marcos) {
+    const chave = indiceAtual + '-' + marco;
+    if (dist <= marco && !anunciosFeitos.has(chave)) {
+      anunciosFeitos.add(chave);
+      if (marco === 30) {
+        speak(passo.texto);
+      } else {
+        speak(`Em ${marco} metros, ${passo.texto.charAt(0).toLowerCase() + passo.texto.slice(1)}`);
+      }
+    }
+  }
+
+  if (dist < 20) {
+    indiceAtual++;
+    if (indiceAtual >= passosRota.length) {
+      speak('Você chegou ao seu destino.');
+      pararNavegacao();
+    }
+  }
+
+  recalcularSeNecessario(lat, lon);
+}
+
+navStartBtn.addEventListener('click', iniciarNavegacao);
+
+mapBtn.addEventListener('click', () => {
+  mapPanel.classList.add('open');
+  iniciarMapa();
+  setTimeout(() => map.invalidateSize(), 100);
+});
+mapCloseBtn.addEventListener('click', () => {
+  mapPanel.classList.remove('open');
+});
+rotaBtn.addEventListener('click', tracarRota);
+destinoInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') tracarRota();
+});
+
+centralizarBtn.addEventListener('click', () => {
+  if (posicaoAtual && map) map.setView([posicaoAtual.lat, posicaoAtual.lon], 16);
+});
+
+manualBtn.addEventListener('click', () => {
+  modoManual = !modoManual;
+  manualBtn.classList.toggle('ativo', modoManual);
+  mapInfo.textContent = modoManual
+    ? 'Modo manual ativado: clique no mapa onde você está.'
+    : 'Modo manual desativado — voltando a usar o GPS.';
+});
+
+// Começa a rastrear a localização em segundo plano assim que a página abre,
+// para que o chat de texto/voz já saiba onde você está.
+comecarLocalizacao();
+</script>
+
+<!-- =====================================================================
+     ESFERA DE CUBOS HOLOGRÁFICA
+     Gerada inteiramente por código (nenhum arquivo/modelo/textura externo
+     — sem dor de cabeça de cache). Centenas de cubinhos distribuídos na
+     superfície de uma esfera; cada um se afasta e volta ao centro de um
+     jeito levemente diferente dos outros, dando uma sensação orgânica.
+     Reage aos estados via window.esfera3D.setState(estado), chamado
+     automaticamente por setVoiceState() no script principal.
+===================================================================== -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+
+const canvas = document.getElementById('esferaCanvas');
+
+const NUM_CUBOS = 420;
+const RAIO_BASE = 1;
+
+// Como cada estado se comporta: amplitude/velocidade do afastamento dos
+// cubos, e a cor da esfera naquele estado.
+const CONFIG_ESTADOS = {
+  idle:      { cor: 0x4df3ff, ampBase: 0.025, ampVar: 0.015, velJitter: 0.9,  velOnda: 0.5,  ampOnda: 0.0,  velRot: 0.12 },
+  listening: { cor: 0xff5ee8, ampBase: 0.045, ampVar: 0.05,  velJitter: 1.6,  velOnda: 1.7,  ampOnda: 0.05, velRot: 0.25 },
+  thinking:  { cor: 0x4df3ff, ampBase: 0.05,  ampVar: 0.05,  velJitter: 7.0,  velOnda: 3.0,  ampOnda: 0.03, velRot: 0.9  },
+  speaking:  { cor: 0x4df3ff, ampBase: 0.09,  ampVar: 0.34,  velJitter: 5.2,  velOnda: 5.5,  ampOnda: 0.14, velRot: 0.45 }
+};
+
+let estadoAtual = 'idle';
+window.esfera3D = {
+  setState(estado){
+    if (CONFIG_ESTADOS[estado]) estadoAtual = estado;
+  }
+};
+
+// ---------- Cena básica ----------
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
+camera.position.set(0, 0, 3.1);
+
+const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+function ajustarTamanho(){
+  const w = canvas.clientWidth || canvas.parentElement.clientWidth;
+  const h = canvas.clientHeight || canvas.parentElement.clientHeight;
+  if (!w || !h) return;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+new ResizeObserver(ajustarTamanho).observe(canvas);
+ajustarTamanho();
+
+scene.add(new THREE.AmbientLight(0x335566, 1.3));
+const luz1 = new THREE.DirectionalLight(0xbfefff, 1.1);
+luz1.position.set(1, 1.2, 1.5);
+scene.add(luz1);
+const luz2 = new THREE.DirectionalLight(0xff9ff0, 0.35);
+luz2.position.set(-1.5, -0.8, -1);
+scene.add(luz2);
+
+// ---------- Gera os pontos na esfera (distribuição de Fibonacci = espaçamento uniforme) ----------
+const anguloDourado = Math.PI * (3 - Math.sqrt(5));
+const cubos = [];
+for (let i = 0; i < NUM_CUBOS; i++){
+  const y = 1 - (i / (NUM_CUBOS - 1)) * 2;
+  const raioNoY = Math.sqrt(Math.max(0, 1 - y * y));
+  const theta = anguloDourado * i;
+  const x = Math.cos(theta) * raioNoY;
+  const z = Math.sin(theta) * raioNoY;
+  const direcao = new THREE.Vector3(x, y, z).normalize();
+  cubos.push({
+    direcao,
+    fase: Math.random() * Math.PI * 2,
+    velFase: 0.7 + Math.random() * 0.8,
+    latitude: Math.acos(THREE.MathUtils.clamp(y, -1, 1)),
+    escala: 0.75 + Math.random() * 0.5
+  });
+}
+
+const tamanhoCubo = 0.052;
+const geometria = new THREE.BoxGeometry(tamanhoCubo, tamanhoCubo, tamanhoCubo);
+const material = new THREE.MeshStandardMaterial({
+  color: 0x4df3ff,
+  emissive: new THREE.Color(0x4df3ff),
+  emissiveIntensity: 0.55,
+  roughness: 0.35,
+  metalness: 0.15,
+  transparent: true,
+  opacity: 0.92
+});
+
+const instancias = new THREE.InstancedMesh(geometria, material, NUM_CUBOS);
+scene.add(instancias);
+
+const grupoEsfera = new THREE.Group();
+grupoEsfera.add(instancias);
+scene.add(grupoEsfera);
+
+// Objetos temporários reutilizados no loop, pra não recriar a cada frame
+const _matriz = new THREE.Matrix4();
+const _pos = new THREE.Vector3();
+const _quat = new THREE.Quaternion();
+const _escala = new THREE.Vector3();
+const _eixoZ = new THREE.Vector3(0, 0, 1);
+
+const relogio = new THREE.Clock();
+let tempo = 0;
+let corAtual = new THREE.Color(0x4df3ff);
+
+function animar(){
+  requestAnimationFrame(animar);
+  const delta = relogio.getDelta();
+  tempo += delta;
+
+  const cfg = CONFIG_ESTADOS[estadoAtual];
+
+  // Rotação lenta e constante da esfera inteira — sempre "viva"
+  grupoEsfera.rotation.y += delta * cfg.velRot;
+  grupoEsfera.rotation.x = Math.sin(tempo * 0.25) * 0.08;
+
+  for (let i = 0; i < NUM_CUBOS; i++){
+    const c = cubos[i];
+
+    // Cada cubo se afasta/aproxima em seu próprio ritmo (jitter individual),
+    // mais uma onda que percorre a esfera de cima a baixo (dá o efeito de
+    // "propagação" quando ela fala ou ouve).
+    const jitter = Math.sin(tempo * cfg.velJitter * c.velFase + c.fase);
+    const onda = Math.sin(c.latitude * 3.2 - tempo * cfg.velOnda) * cfg.ampOnda;
+    const afastamento = cfg.ampBase + Math.max(0, jitter) * cfg.ampVar + onda;
+
+    const raio = RAIO_BASE * (1 + afastamento);
+    _pos.copy(c.direcao).multiplyScalar(raio);
+
+    // Orienta o cubo "olhando" para fora, ao longo da direção radial
+    _quat.setFromUnitVectors(_eixoZ, c.direcao);
+
+    const escalaFinal = c.escala * (1 - Math.min(0.35, afastamento * 0.5));
+    _escala.setScalar(escalaFinal);
+
+    _matriz.compose(_pos, _quat, _escala);
+    instancias.setMatrixAt(i, _matriz);
+  }
+  instancias.instanceMatrix.needsUpdate = true;
+
+  // Cor + brilho da esfera, suavemente interpolados para o estado atual
+  corAtual.lerp(new THREE.Color(cfg.cor), Math.min(1, delta * 6));
+  material.color.copy(corAtual);
+  material.emissive.copy(corAtual);
+  material.emissiveIntensity = 0.45 + Math.sin(tempo * 2) * 0.08 +
+    (estadoAtual === 'speaking' ? Math.max(0, Math.sin(tempo * cfg.velJitter)) * 0.35 : 0);
+
+  renderer.render(scene, camera);
+}
+animar();
+</script>
+
+</body>
+</html>
