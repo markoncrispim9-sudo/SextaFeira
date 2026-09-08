@@ -412,6 +412,20 @@ const tools = [
         required: ['destino']
       }
     }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'abrir_aplicativo',
+      description: 'Abre um aplicativo instalado no computador do usuário. Use quando ele pedir para abrir, iniciar ou executar um programa, jogo ou app. Exemplos de nomes: chrome, discord, steam, spotify, whatsapp, notepad, calculadora, explorador, terminal, firefox, edge, telegram.',
+      parameters: {
+        type: 'object',
+        properties: {
+          nome: { type: 'string', description: 'Nome curto do aplicativo em minúsculas, ex: chrome, steam, discord, spotify' }
+        },
+        required: ['nome']
+      }
+    }
   }
 ];
 
@@ -440,6 +454,9 @@ async function executarFerramenta(nome, args, contexto) {
   }
   if (nome === 'buscar_rota') {
     return await buscarRota({ destino: args.destino, lat: contexto.lat, lon: contexto.lon });
+  }
+  if (nome === 'abrir_aplicativo') {
+    return { status: 'solicitado', nome: (args.nome || '').toLowerCase().trim() };
   }
   return { error: 'ferramenta desconhecida' };
 }
@@ -517,6 +534,7 @@ Regras importantes:
 - Se pedir cancelar e criar no mesmo pedido, use as duas ferramentas.
 - Para clima, use consultar_clima. Se não disser a cidade, pergunte antes. Se a ferramenta retornar "erro", repita a mensagem de erro literalmente.
 - Para salvar informação ou calcular rota, use salvar_memoria ou buscar_rota. Se buscar_rota retornar erro, repita a mensagem literalmente.
+- Se o usuário pedir para abrir, iniciar ou executar um aplicativo, jogo ou programa do computador (Chrome, Discord, Steam, Spotify, etc.), use a ferramenta abrir_aplicativo com o nome curto do app. Confirme de forma breve que está abrindo.
 - Nunca diga que fez algo (criar, cancelar, editar) sem ter usado a ferramenta correspondente e recebido confirmação.`;
 
     let messages = [
@@ -556,6 +574,12 @@ Regras importantes:
               nome: resultado.destino
             };
           }
+          if (call.function.name === 'abrir_aplicativo' && resultado && resultado.nome) {
+            acaoFrontend = {
+              tipo: 'abrir_app',
+              nome: resultado.nome
+            };
+          }
           messages.push({
             role: 'tool',
             tool_call_id: call.id,
@@ -574,6 +598,77 @@ Regras importantes:
     res.json({ reply, acao: acaoFrontend });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------- Briefing de abertura (apresentação Jarvis) ----------
+app.get('/api/briefing', authMiddleware, async (req, res) => {
+  try {
+    const agora = new Date();
+    const hora = agora.toLocaleTimeString('pt-BR', {
+      timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hour12: false
+    });
+    const hojeExtenso = agora.toLocaleDateString('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      weekday: 'long', day: '2-digit', month: 'long', year: 'numeric'
+    });
+
+    let eventosTexto = '';
+    try {
+      const events = await getTodayEvents();
+      if (events.length === 0) {
+        eventosTexto = 'Não há compromissos na agenda para hoje.';
+      } else {
+        const lista = events.map(e => `${e.time}, ${e.title}`).join('; ');
+        eventosTexto = `Você tem ${events.length} compromisso${events.length > 1 ? 's' : ''} hoje: ${lista}.`;
+      }
+    } catch (e) {
+      eventosTexto = 'Não consegui consultar a agenda no momento.';
+    }
+
+    let emailsTexto = '';
+    try {
+      const emails = await getRecentEmails();
+      if (emails.length === 0) {
+        emailsTexto = 'Não há e-mails recentes na caixa de entrada.';
+      } else {
+        const primeiro = emails[0];
+        emailsTexto = `Há ${emails.length} e-mail${emails.length > 1 ? 's' : ''} recente${emails.length > 1 ? 's' : ''}. O mais recente é de ${primeiro.from}, assunto: ${primeiro.subject}.`;
+      }
+    } catch (e) {
+      emailsTexto = 'Não consegui consultar os e-mails no momento.';
+    }
+
+    let climaTexto = '';
+    try {
+      // Cidade padrão — o usuário pode mudar depois; Goiânia como fallback do app original
+      const clima = await getWeatherForecast('Goiânia');
+      if (clima && clima.previsao_proximos_dias && clima.previsao_proximos_dias.length) {
+        const hoje = clima.previsao_proximos_dias[0];
+        climaTexto = `Em ${clima.cidade}, a previsão para hoje é ${hoje.descricao}, com máxima de ${hoje.temperatura_maxima} graus e mínima de ${hoje.temperatura_minima}.`;
+      } else if (clima && clima.erro) {
+        climaTexto = '';
+      }
+    } catch (e) {
+      climaTexto = '';
+    }
+
+    const partes = [
+      `Bom dia, senhor. Hoje é ${hojeExtenso}, são ${hora}.`,
+      climaTexto,
+      eventosTexto,
+      emailsTexto,
+      'Sistemas operacionais. Às suas ordens.'
+    ].filter(Boolean);
+
+    // Ajusta saudação conforme horário
+    const h = parseInt(hora.slice(0, 2), 10);
+    if (h >= 12 && h < 18) partes[0] = `Boa tarde, senhor. Hoje é ${hojeExtenso}, são ${hora}.`;
+    if (h >= 18 || h < 5) partes[0] = `Boa noite, senhor. Hoje é ${hojeExtenso}, são ${hora}.`;
+
+    res.json({ texto: partes.join(' ') });
+  } catch (err) {
+    res.status(500).json({ error: err.message, texto: 'Sistemas online. Às suas ordens.' });
   }
 });
 
